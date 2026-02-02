@@ -1,0 +1,500 @@
+[
+    {
+        "id": "aeaa005196de8711",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "2d2ab01b88ef6cf9",
+        "type": "mqtt in",
+        "z": "aeaa005196de8711",
+        "name": "",
+        "topic": "cloud/normal",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "a6596177e421f629",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 90,
+        "y": 120,
+        "wires": [
+            [
+                "44a4ca963c73c4d3",
+                "e0a4ee9ec4b90fc1"
+            ]
+        ]
+    },
+    {
+        "id": "69ba619e0f627c99",
+        "type": "mqtt in",
+        "z": "aeaa005196de8711",
+        "name": "",
+        "topic": "cloud/emergency",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "a6596177e421f629",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 100,
+        "y": 260,
+        "wires": [
+            [
+                "ae61a3858ebd55a0",
+                "0787fe4a226b5347"
+            ]
+        ]
+    },
+    {
+        "id": "4390dfdc591d6737",
+        "type": "debug",
+        "z": "aeaa005196de8711",
+        "name": "debug 2",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 800,
+        "y": 360,
+        "wires": []
+    },
+    {
+        "id": "ae61a3858ebd55a0",
+        "type": "json",
+        "z": "aeaa005196de8711",
+        "name": "",
+        "property": "payload",
+        "action": "obj",
+        "pretty": false,
+        "x": 270,
+        "y": 360,
+        "wires": [
+            [
+                "6f8111e9393c64ac"
+            ]
+        ]
+    },
+    {
+        "id": "44a4ca963c73c4d3",
+        "type": "json",
+        "z": "aeaa005196de8711",
+        "name": "",
+        "property": "payload",
+        "action": "obj",
+        "pretty": false,
+        "x": 270,
+        "y": 160,
+        "wires": [
+            [
+                "1f3c182f1c76f856"
+            ]
+        ]
+    },
+    {
+        "id": "1f3c182f1c76f856",
+        "type": "function",
+        "z": "aeaa005196de8711",
+        "name": "function 1",
+        "func": "let now = Date.now();\nlet lastTime = context.get(\"lastTime\");\n\n// Save current time\ncontext.set(\"lastTime\", now);\n\n// Ensure payload exists\nif (!msg.payload) {\n    msg.payload = {};\n}\n\n// First packet\nif (!lastTime) {\n    msg.payload.inter_arrival_ms = null;\n    return msg;\n}\n\n// Calculate inter-arrival delay\nmsg.payload.inter_arrival_ms = now - lastTime;\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 160,
+        "wires": [
+            [
+                "8a18fe51aea209dc"
+            ]
+        ]
+    },
+    {
+        "id": "8a18fe51aea209dc",
+        "type": "function",
+        "z": "aeaa005196de8711",
+        "name": "function 3",
+        "func": "// Ensure payload exists\nif (!msg.payload) {\n    return msg;\n}\n\nlet type = msg.payload.type || \"unknown\";\nlet currentDelay = msg.payload.inter_arrival_ms;\n\n// Ignore first packet where delay is null\nif (currentDelay === null) {\n    msg.payload = {\n        type: type,\n        status: \"initializing\"\n    };\n    return msg;\n}\n\n// Convert to number\ncurrentDelay = Number(currentDelay);\nif (isNaN(currentDelay)) {\n    msg.payload = {\n        type: type,\n        status: \"invalid_delay\"\n    };\n    return msg;\n}\n\n// Use separate statistics per traffic type\nlet key = \"stats_\" + type;\nlet stats = context.get(key);\n\nif (!stats) {\n    stats = {\n        prevDelay: null,\n        totalDelay: 0,\n        count: 0\n    };\n}\n\n// Calculate jitter\nlet jitter = 0;\nif (stats.prevDelay !== null) {\n    jitter = Math.abs(currentDelay - stats.prevDelay);\n}\n\n// Update statistics\nstats.prevDelay = currentDelay;\nstats.totalDelay += currentDelay;\nstats.count += 1;\ncontext.set(key, stats);\n\n// Calculate average delay\nlet avgDelay = stats.totalDelay / stats.count;\n\n// Output final metrics\nmsg.payload = {\n    type: type,\n    inter_arrival_ms: currentDelay,\n    avg_delay_ms: Math.round(avgDelay),\n    jitter_ms: jitter\n};\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 600,
+        "y": 160,
+        "wires": [
+            [
+                "d000d54831b0bd04",
+                "7758205cf2e12848",
+                "380cee3ac460abae"
+            ]
+        ]
+    },
+    {
+        "id": "6f8111e9393c64ac",
+        "type": "function",
+        "z": "aeaa005196de8711",
+        "name": "function 4",
+        "func": "// Get current receive time\nlet now = Date.now();\n\n// Get last receive time from context\nlet lastTime = context.get(\"lastTime\");\n\n// Save current time for next message\ncontext.set(\"lastTime\", now);\n\n// First packet: no inter-arrival yet\nif (!lastTime) {\n    msg.payload = {\n        type: msg.payload.type,\n        inter_arrival_ms: null\n    };\n    return msg;\n}\n\n// Calculate inter-arrival delay\nlet delta = now - lastTime;\n\nmsg.payload = {\n    type: msg.payload.type,\n    inter_arrival_ms: delta\n};\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 360,
+        "wires": [
+            [
+                "d2d55471f721d152"
+            ]
+        ]
+    },
+    {
+        "id": "d2d55471f721d152",
+        "type": "function",
+        "z": "aeaa005196de8711",
+        "name": "function 5",
+        "func": "// Ensure payload exists\nif (!msg.payload) {\n    return msg;\n}\n\nlet type = msg.payload.type || \"unknown\";\nlet currentDelay = msg.payload.inter_arrival_ms;\n\n// Ignore first packet where delay is null\nif (currentDelay === null) {\n    msg.payload = {\n        type: type,\n        status: \"initializing\"\n    };\n    return msg;\n}\n\n// Convert to number\ncurrentDelay = Number(currentDelay);\nif (isNaN(currentDelay)) {\n    msg.payload = {\n        type: type,\n        status: \"invalid_delay\"\n    };\n    return msg;\n}\n\n// Use separate statistics per traffic type\nlet key = \"stats_\" + type;\nlet stats = context.get(key);\n\nif (!stats) {\n    stats = {\n        prevDelay: null,\n        totalDelay: 0,\n        count: 0\n    };\n}\n\n// Calculate jitter\nlet jitter = 0;\nif (stats.prevDelay !== null) {\n    jitter = Math.abs(currentDelay - stats.prevDelay);\n}\n\n// Update statistics\nstats.prevDelay = currentDelay;\nstats.totalDelay += currentDelay;\nstats.count += 1;\ncontext.set(key, stats);\n\n// Calculate average delay\nlet avgDelay = stats.totalDelay / stats.count;\n\n// Output final metrics\nmsg.payload = {\n    type: type,\n    inter_arrival_ms: currentDelay,\n    avg_delay_ms: Math.round(avgDelay),\n    jitter_ms: jitter\n};\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 600,
+        "y": 360,
+        "wires": [
+            [
+                "4390dfdc591d6737",
+                "25f823101813b5f5",
+                "58910a38b58db56b"
+            ]
+        ]
+    },
+    {
+        "id": "d000d54831b0bd04",
+        "type": "debug",
+        "z": "aeaa005196de8711",
+        "name": "debug 1",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 820,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "f1c6c6d80e02e911",
+        "type": "function",
+        "z": "aeaa005196de8711",
+        "name": "function 2",
+        "func": "let type = msg.payload.type;\nlet seq = Number(msg.payload.seq);\n\nlet key = \"lastSeq_\" + type;\nlet lastSeq = context.get(key);\n\nlet lost = 0;\n\nif (lastSeq !== undefined && seq !== lastSeq + 1) {\n    lost = seq - lastSeq - 1;\n}\n\ncontext.set(key, seq);\n\nmsg.payload = {\n    type: type,\n    seq: seq,\n    packets_lost: lost\n};\n\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 280,
+        "wires": [
+            [
+                "38238275ea32cdf7"
+            ]
+        ]
+    },
+    {
+        "id": "38238275ea32cdf7",
+        "type": "debug",
+        "z": "aeaa005196de8711",
+        "name": "debug 3",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 600,
+        "y": 280,
+        "wires": []
+    },
+    {
+        "id": "e0a4ee9ec4b90fc1",
+        "type": "debug",
+        "z": "aeaa005196de8711",
+        "name": "debug 4",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 260,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "f56a03e7c5681a04",
+        "type": "ui_chart",
+        "z": "aeaa005196de8711",
+        "name": "",
+        "group": "3467fd15160e13ac",
+        "order": 0,
+        "width": "0",
+        "height": "0",
+        "label": "Latency",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "Waiting for data…",
+        "dot": false,
+        "ymin": "",
+        "ymax": "",
+        "removeOlder": "1",
+        "removeOlderPoints": "",
+        "removeOlderUnit": "60",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#207bbc",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 980,
+        "y": 200,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "7758205cf2e12848",
+        "type": "function",
+        "z": "aeaa005196de8711",
+        "name": "Latency value",
+        "func": "msg.payload = msg.payload.avg_delay_ms;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 800,
+        "y": 200,
+        "wires": [
+            [
+                "f56a03e7c5681a04"
+            ]
+        ]
+    },
+    {
+        "id": "380cee3ac460abae",
+        "type": "function",
+        "z": "aeaa005196de8711",
+        "name": "Jitter value",
+        "func": "msg.payload = msg.payload.jitter_ms;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 810,
+        "y": 120,
+        "wires": [
+            [
+                "cc96bae864c838d6"
+            ]
+        ]
+    },
+    {
+        "id": "cc96bae864c838d6",
+        "type": "ui_chart",
+        "z": "aeaa005196de8711",
+        "name": "",
+        "group": "3467fd15160e13ac",
+        "order": 0,
+        "width": 0,
+        "height": 0,
+        "label": "Jitter",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "Waiting for data…",
+        "dot": false,
+        "ymin": "",
+        "ymax": "5000",
+        "removeOlder": "1",
+        "removeOlderPoints": "",
+        "removeOlderUnit": "60",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#207bbc",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 990,
+        "y": 120,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "25f823101813b5f5",
+        "type": "function",
+        "z": "aeaa005196de8711",
+        "name": "Jitter Value emergency",
+        "func": "msg.payload = msg.payload.jitter_ms;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 820,
+        "y": 440,
+        "wires": [
+            [
+                "cc96bae864c838d6"
+            ]
+        ]
+    },
+    {
+        "id": "58910a38b58db56b",
+        "type": "function",
+        "z": "aeaa005196de8711",
+        "name": "Latency value",
+        "func": "msg.payload = msg.payload.avg_delay_ms;\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 820,
+        "y": 520,
+        "wires": [
+            [
+                "f56a03e7c5681a04"
+            ]
+        ]
+    },
+    {
+        "id": "0787fe4a226b5347",
+        "type": "debug",
+        "z": "aeaa005196de8711",
+        "name": "debug 5",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 280,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "a6596177e421f629",
+        "type": "mqtt-broker",
+        "name": "iot hackathon",
+        "broker": "broker.hivemq.com",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "3467fd15160e13ac",
+        "type": "ui_group",
+        "name": "Latency & Jitter",
+        "tab": "22a5df3730de56fb",
+        "order": 1,
+        "disp": true,
+        "width": 6,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "22a5df3730de56fb",
+        "type": "ui_tab",
+        "name": "Performance",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "c63c13dfc597bb8a",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-dashboard": "3.6.6"
+        }
+    }
+]
